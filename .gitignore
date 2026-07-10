@@ -1,0 +1,10 @@
+.env
+ALFRED_memory.db
+sft_training_data.jsonl
+alfred_knowledge_db/
+knowledge_base/
+__pycache__/
+*.pyc
+.DS_Store
+knowledge_base_state.json
+research_output.txt
