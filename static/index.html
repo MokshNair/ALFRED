@@ -152,7 +152,7 @@
     </button>
     <button class="model-btn" data-model="openrouter">
       <strong>OpenRouter</strong>
-      <span>Llama 3.3 70B — via OpenRouter API.</span>
+      <span>poolside/laguna-s-2.1 — via OpenRouter API (free tier).</span>
     </button>
   </div>
   <div id="start-error"></div>
@@ -226,7 +226,7 @@ async function startSession(model) {
 function enterChat(threadId, model) {
   startScreen.style.display = 'none';
   chatView.style.display = 'flex';
-  modelBadge.textContent = model === 'local' ? 'Local · Qwen 2.5 14B' : 'OpenRouter · Llama 3.3 70B';
+  modelBadge.textContent = model === 'local' ? 'Local · Qwen 2.5 14B' : 'OpenRouter · poolside/laguna-s-2.1';
   messagesEl.innerHTML = '';
   inputEl.focus();
 }
