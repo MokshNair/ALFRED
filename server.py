@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from pydantic import BaseModel
 
-from agent import build_agent_executor, build_llm, is_ollama_available, log_sft_turn, maybe_save_output
+from agent import build_agent_executor, build_llm, is_ollama_available, log_sft_turn, maybe_save_output, retrieve_memories, store_in_memory
 
 load_dotenv()
 
@@ -82,9 +82,19 @@ def chat(req: ChatRequest, request: Request):
     agent_executor = request.app.state.agents[model]
     config = {"configurable": {"thread_id": req.thread_id}}
 
+    memories = retrieve_memories(req.message)
+    memory_texts = []
+    for content, score in memories:
+        memory_texts.append(content)
+    memory_context = "\n\n---\n\n".join(memory_texts)
+    if not memory_texts:
+        combined_message = req.message
+    else:
+        combined_message = f"Relevant memory: {memory_context}\n\nUser's question: {req.message}"
+        
     try:
         final_state = agent_executor.invoke(
-            {"messages": [("user", req.message)]},
+            {"messages": [("user", combined_message)]},
             config=config,
         )
         response_text = final_state["messages"][-1].content
@@ -93,6 +103,7 @@ def chat(req: ChatRequest, request: Request):
 
     log_sft_turn(req.message, response_text)
     saved = maybe_save_output(req.message, response_text)
+    store_in_memory(req.message, req.thread_id)
 
     return {"response": response_text, "saved": saved}
 

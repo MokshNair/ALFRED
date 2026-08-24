@@ -1,12 +1,17 @@
 import datetime
 import json
 import os
-
+import sqlite3
+import numpy as np
+import math
 import requests
+from sentence_transformers import SentenceTransformer
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 
 from tools import knowledge_tool, search_tool, wiki_tool
+
+_memory_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 LOCAL_MODEL = "qwen2.5:14b"
@@ -85,6 +90,68 @@ def build_agent_executor(llm: ChatOpenAI, checkpointer):
         system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
     )
+
+def dot_product(a, b):
+    products = []
+    i = 0
+    while i < len(a):
+        product = a[i] * b[i]
+        products.append(product)
+        i += 1
+    return sum(products)
+
+def magnitude(a):
+    square = []
+    i = 0
+    for i in a:
+        val = i * i
+        square.append(val)
+    sum_sq = sum(square)
+    return math.sqrt(sum_sq)
+
+def cosine_similarity(a, b):
+    
+    return dot_product(a, b)/(magnitude(a) * magnitude(b))
+
+def store_memory(content, thread_id):
+    embedding = _memory_model.encode(content)
+    embedding_bytes = embedding.tobytes()
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect("ALFRED_memory.db")
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO memories (thread_id, content, embedding, created_at) VALUES (?, ?, ?, ?)",(thread_id, content, embedding_bytes, timestamp))
+    conn.commit()
+    conn.close()
+    
+    
+def retrieve_memories(query, top_n=3):
+    query_embedding = _memory_model.encode(query)
+
+    conn = sqlite3.connect("ALFRED_memory.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT content, embedding FROM memories")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    scored = []
+    for content, embedding_bytes in rows:
+        stored_embedding = np.frombuffer(embedding_bytes, dtype=np.float32)
+        score = cosine_similarity(query_embedding, stored_embedding)
+        scored.append((content, score))
+        
+    sorted_memories = sorted(scored, key=lambda x:x[1], reverse=True)
+    return sorted_memories[:top_n]
+
+
+MEMORY_KEYWORDS = ("remember that", "remember this", "don't forget", "keep in mind", "note that")
+def store_in_memory(query: str, thread_id):
+    lowered = query.lower()
+    for keyword in MEMORY_KEYWORDS:
+        if keyword in lowered:
+            cleaned_query = lowered.replace(keyword, "").strip()
+            store_memory(cleaned_query, thread_id)
+            return True
+    return False
 
 
 def log_sft_turn(query: str, response: str) -> None:
